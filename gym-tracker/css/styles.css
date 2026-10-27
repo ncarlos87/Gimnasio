@@ -27,7 +27,7 @@
   --tabs-h: 64px;
 }
 
-*, *::before, *::after { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; touch-action: manipulation; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
@@ -39,6 +39,9 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 body.sheet-open { overflow: hidden; }
+/* Tocar varias veces seguidas (+, −, discos) no tiene que hacer zoom ni seleccionar texto. */
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea, select, .tip { -webkit-user-select: text; user-select: text; }
 
 main {
   max-width: 560px;
