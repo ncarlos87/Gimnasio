@@ -47,20 +47,23 @@ function targetText(ex) {
 }
 
 /* ---------- Sesión: construcción ---------- */
+// Un peso cuenta como "usado" si la serie quedó hecha o si yo lo escribí/ajusté a mano.
+const known = (x) => !!x && x.weight != null && (x.done || x.touched);
+
 function lastEntry(exId, exceptId) {
   const list = state.sessions
-    .filter((s) => s.id !== exceptId && s.entries[exId] && s.entries[exId].sets.some((x) => x.done))
+    .filter((s) => s.id !== exceptId && s.entries[exId] && s.entries[exId].sets.some(known))
     .sort(byStart);
   return list.length ? list[list.length - 1].entries[exId] : null;
 }
 
 function makeEntry(ex, block, prev) {
   const prevSets = prev ? prev.sets : [];
-  const lastKnown = [...prevSets].reverse().find((s) => s.done && s.weight != null)?.weight ?? null;
+  const lastKnown = [...prevSets].reverse().find(known)?.weight ?? null;
   const weighted = ex.weightMode !== 'none';
   const sets = Array.from({ length: block.rounds }, (_, i) => {
     const ps = prevSets[i];
-    const p = weighted ? (ps && ps.done && ps.weight != null ? ps.weight : lastKnown) : null;
+    const p = weighted ? (known(ps) ? ps.weight : lastKnown) : null;
     return {
       weight: weighted ? (p ?? ex.weight ?? null) : null,
       prev: p, // lo que usé la última vez en esta vuelta
@@ -115,6 +118,19 @@ function progress(s) {
       }
     }
   return { done, total };
+}
+
+function carryForward(entry, from) {
+  const w = entry.sets[from]?.weight;
+  if (w == null) return;
+  for (let j = from + 1; j < entry.sets.length; j++) {
+    const x = entry.sets[j];
+    // Solo pisa vueltas sin peso propio o que ya venían de un arrastre anterior (no las que ajusté a mano).
+    if (!x.done && !x.touched && (x.weight == null || x.carried)) {
+      x.weight = w;
+      x.carried = true;
+    }
+  }
 }
 
 const roundComplete = (s, b, i) => b.exercises.every((ex) => s.entries[ex.id]?.sets[i]?.done);
@@ -651,16 +667,20 @@ const actions = {
     const { s, e, set } = setOf(el);
     if (!set) return;
     set.done = !set.done;
+    if (set.done) carryForward(e, +el.dataset.round);
     saveSession(s);
     if (set.done) afterDone(s, e, +el.dataset.round);
     render();
   },
   step(el) {
-    const { s, set } = setOf(el);
+    const { s, e, set } = setOf(el);
     if (!set) return;
     const step = state.settings.weightStep || 0.5;
     const base = set.weight ?? set.prev ?? 0;
     set.weight = Math.max(0, Math.round((base + Number(el.dataset.dir) * step) * 100) / 100);
+    set.touched = true;
+    set.carried = false;
+    carryForward(e, +el.dataset.round);
     saveSession(s);
     render();
   },
@@ -786,9 +806,14 @@ function fieldChange(el) {
     saveSettings();
     return toast('Ajuste guardado');
   }
-  const { s, set } = setOf(el);
+  const { s, e, set } = setOf(el);
   if (!set) return;
-  if (f === 'weight') set.weight = parseNum(el.value);
+  if (f === 'weight') {
+    set.weight = parseNum(el.value);
+    set.touched = set.weight != null;
+    set.carried = false;
+    carryForward(e, +el.dataset.round);
+  }
   else if (f === 'reps' || f === 'seconds') {
     const n = parseInt(el.value, 10);
     set[f] = Number.isFinite(n) && n >= 0 ? n : null;
