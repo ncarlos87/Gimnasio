@@ -1,6 +1,6 @@
 // Service worker: deja la app disponible sin conexión.
 // Estrategia: responde desde la caché y actualiza en segundo plano (la próxima apertura ya trae lo nuevo).
-const VERSION = 'gimnasio-v1';
+const VERSION = 'gimnasio-v2';
 const ASSETS = [
   './',
   'index.html',
